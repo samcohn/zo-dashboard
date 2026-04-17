@@ -638,12 +638,9 @@ function Summary({ context, nodes, suggestions }: { context: ContextSnapshot | n
           <div style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--text-muted)', fontFamily: tokens.font.body, fontWeight: 400 }}>{briefing}</div>
         ) : null}
       </div>
-      <Progress.Root style={{ height: 1, background: 'rgba(var(--fg-rgb),0.06)', borderRadius: 1, overflow: 'hidden', marginBottom: 16 }}>
+      <Progress.Root style={{ height: 1, background: 'rgba(var(--fg-rgb),0.06)', borderRadius: 1, overflow: 'hidden' }}>
         <Progress.Indicator style={{ height: '100%', width: `${overallPct}%`, background: 'rgba(var(--fg-rgb),0.3)', transition: 'width 0.5s ease' }} />
       </Progress.Root>
-      <div style={{ fontSize: 12, color: 'var(--text-faint)', fontFamily: tokens.font.body, fontWeight: 400 }}>
-        click a node to explore it · scroll to zoom · drag to pan
-      </div>
     </div>
   );
 }
@@ -879,7 +876,12 @@ function ZoView({ nodes, suggestions = [], projects = [], onProjectsChange, them
             {types.map(t => <ToggleGroup.Item key={t} value={t} style={{ fontSize: 12, padding: '4px 10px', border: 'none', borderRadius: 20, background: filter === t ? 'rgba(var(--fg-rgb),0.1)' : 'transparent', color: filter === t ? 'var(--fg)' : 'rgba(var(--fg-rgb),0.3)', cursor: 'pointer', fontFamily: tokens.font.body, textTransform: 'lowercase' }}>{t === 'all' ? 'all' : t === 'data' ? 'data' : t + 's'}</ToggleGroup.Item>)}
           </ToggleGroup.Root>
         </div>
-        <div style={{ flex: 1, minHeight: 420 }}>
+        <div style={{ flex: 1, minHeight: 420, position: 'relative' }}>
+          {mode === 'graph' && (
+            <div style={{ position: 'absolute', bottom: 12, left: 16, zIndex: 1, fontSize: 11, color: 'var(--text-faint)', fontFamily: tokens.font.body, fontWeight: 400, pointerEvents: 'none', letterSpacing: '0.2px' }}>
+              click a node to explore it · scroll to zoom · drag to pan
+            </div>
+          )}
           {mode === 'graph' ? <GrowthViz nodes={nodes} selectedId={selectedId} onSelect={id => setSelectedId(id === selectedId ? null : id)} filter={filter} theme={theme} /> :
             <ScrollArea.Root style={{ height: 420, overflow: 'hidden' }}><ScrollArea.Viewport style={{ width: '100%', height: '100%', padding: 16 }}>
               {(filter === 'all' ? nodes : nodes.filter(n => n.type === filter)).map(node => (
