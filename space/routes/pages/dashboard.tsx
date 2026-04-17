@@ -414,15 +414,15 @@ function StepRow({ project, step, onChange }: { project: Project; step: ProjectS
         </button>
         <span style={{ fontSize: 13, color: step.status === 'done' ? 'rgba(var(--fg-rgb),0.25)' : 'rgba(var(--fg-rgb),0.7)', textDecoration: step.status === 'done' ? 'line-through' : 'none', fontWeight: 300, flex: 1 }}>{step.label}</span>
         {isExecutable && step.executor && (
-          <span style={{ fontSize: 9, color: 'rgba(var(--fg-rgb),0.25)', fontFamily: tokens.font.mono, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{step.executor.type.replace('_', ' ')}</span>
+          <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: tokens.font.mono, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{step.executor.type.replace('_', ' ')}</span>
         )}
         {isExecutable && !isRunning && (
-          <button onClick={(e) => { e.stopPropagation(); kickoff(); }} disabled={loadingInitial} style={{ fontSize: 10, padding: '2px 8px', border: '1px solid rgba(var(--fg-rgb),0.15)', borderRadius: 10, background: 'transparent', color: 'rgba(var(--fg-rgb),0.5)', cursor: 'pointer', fontFamily: tokens.font.body }}>
+          <button onClick={(e) => { e.stopPropagation(); kickoff(); }} disabled={loadingInitial} style={{ fontSize: 10, padding: '2px 8px', border: '1px solid rgba(var(--fg-rgb),0.15)', borderRadius: 10, background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: tokens.font.body }}>
             {run ? 'rerun' : 'run ▸'}
           </button>
         )}
         {isRunning && (
-          <span style={{ fontSize: 10, color: 'rgba(var(--fg-rgb),0.5)', fontFamily: tokens.font.body, fontStyle: 'italic' }}>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: tokens.font.body, fontStyle: 'italic' }}>
             running…
           </span>
         )}
@@ -479,21 +479,21 @@ function ProjectCard({ project, nodes, onChange }: { project: Project; nodes: Zo
           <button style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--fg)', fontFamily: tokens.font.body, padding: 0 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
               <span style={{ fontFamily: tokens.font.display, fontSize: 15, fontWeight: 400, color: 'var(--fg)', flex: 1 }}>{project.title}</span>
-              {project.ai_generated && <span style={{ fontSize: 9, color: 'rgba(var(--fg-rgb),0.2)', border: '1px solid rgba(var(--fg-rgb),0.1)', padding: '1px 5px', borderRadius: 8 }}>ai</span>}
-              <span style={{ fontFamily: tokens.font.mono, fontSize: 10, color: 'rgba(var(--fg-rgb),0.3)' }}>{doneCount}/{totalCount}</span>
-              <span style={{ fontSize: 12, color: 'rgba(var(--fg-rgb),0.2)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>›</span>
+              {project.ai_generated && <span style={{ fontSize: 9, color: 'var(--text-faint)', border: '1px solid rgba(var(--fg-rgb),0.1)', padding: '1px 5px', borderRadius: 8 }}>ai</span>}
+              <span style={{ fontFamily: tokens.font.mono, fontSize: 10, color: 'var(--text-dim)' }}>{doneCount}/{totalCount}</span>
+              <span style={{ fontSize: 12, color: 'var(--text-faint)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>›</span>
             </div>
-            <div style={{ fontSize: 12, color: 'rgba(var(--fg-rgb),0.4)', fontWeight: 300, marginBottom: 8, lineHeight: 1.5 }}>{project.goal}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-subtle)', fontWeight: 300, marginBottom: 8, lineHeight: 1.5 }}>{project.goal}</div>
             <Progress.Root style={{ height: 1, background: 'rgba(var(--fg-rgb),0.06)', borderRadius: 1, overflow: 'hidden', marginBottom: 8 }}>
               <Progress.Indicator style={{ height: '100%', width: `${pct}%`, background: 'rgba(var(--fg-rgb),0.35)', transition: 'width 0.4s ease' }} />
             </Progress.Root>
-            {nextStep && !expanded && <div style={{ fontSize: 11, color: 'rgba(var(--fg-rgb),0.35)', fontFamily: tokens.font.body }}><span style={{ color: 'rgba(var(--fg-rgb),0.2)', marginRight: 6 }}>next:</span>{nextStep.label}</div>}
+            {nextStep && !expanded && <div style={{ fontSize: 11, color: 'var(--text-subtle)', fontFamily: tokens.font.body }}><span style={{ color: 'var(--text-faint)', marginRight: 6 }}>next:</span>{nextStep.label}</div>}
           </button>
         </Collapsible.Trigger>
         <Collapsible.Content>
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(var(--fg-rgb),0.04)' }}>
             {project.plan.length === 0 ? (
-              <div style={{ fontSize: 12, color: 'rgba(var(--fg-rgb),0.2)', fontStyle: 'italic', fontFamily: tokens.font.body }}>No plan yet.</div>
+              <div style={{ fontSize: 12, color: 'var(--text-faint)', fontStyle: 'italic', fontFamily: tokens.font.body }}>No plan yet.</div>
             ) : (
               project.plan.map(step => (
                 <StepRow key={step.id} project={project} step={step} onChange={onChange} />
@@ -501,9 +501,9 @@ function ProjectCard({ project, nodes, onChange }: { project: Project; nodes: Zo
             )}
             {linkedNodes.length > 0 && (
               <div style={{ marginTop: 14, paddingTop: 10, borderTop: '1px solid rgba(var(--fg-rgb),0.04)' }}>
-                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(var(--fg-rgb),0.2)', marginBottom: 6, fontFamily: tokens.font.body }}>linked</div>
+                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-faint)', marginBottom: 6, fontFamily: tokens.font.body }}>linked</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {linkedNodes.map(n => <span key={n.id} style={{ fontSize: 11, padding: '2px 8px', border: '1px solid rgba(var(--fg-rgb),0.1)', borderRadius: 10, color: 'rgba(var(--fg-rgb),0.5)', fontFamily: tokens.font.body }}>{n.label}</span>)}
+                  {linkedNodes.map(n => <span key={n.id} style={{ fontSize: 11, padding: '2px 8px', border: '1px solid rgba(var(--fg-rgb),0.1)', borderRadius: 10, color: 'var(--text-muted)', fontFamily: tokens.font.body }}>{n.label}</span>)}
                 </div>
               </div>
             )}
@@ -513,10 +513,10 @@ function ProjectCard({ project, nodes, onChange }: { project: Project; nodes: Zo
                   {runningToday ? 'dispatching…' : `run today (${executableCount})`}
                 </button>
               )}
-              <button onClick={handleRegenerate} disabled={regenerating} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid rgba(var(--fg-rgb),0.1)', borderRadius: 14, background: 'transparent', color: 'rgba(var(--fg-rgb),0.4)', cursor: regenerating ? 'wait' : 'pointer', fontFamily: tokens.font.body }}>
+              <button onClick={handleRegenerate} disabled={regenerating} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid rgba(var(--fg-rgb),0.1)', borderRadius: 14, background: 'transparent', color: 'var(--text-subtle)', cursor: regenerating ? 'wait' : 'pointer', fontFamily: tokens.font.body }}>
                 {regenerating ? 'regenerating...' : 'regenerate plan'}
               </button>
-              <button onClick={handleArchive} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid rgba(var(--fg-rgb),0.08)', borderRadius: 14, background: 'transparent', color: 'rgba(var(--fg-rgb),0.25)', cursor: 'pointer', fontFamily: tokens.font.body, marginLeft: 'auto' }}>
+              <button onClick={handleArchive} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid rgba(var(--fg-rgb),0.08)', borderRadius: 14, background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer', fontFamily: tokens.font.body, marginLeft: 'auto' }}>
                 archive
               </button>
             </div>
@@ -548,18 +548,18 @@ function NewProjectDialog({ open, onOpenChange, onCreated }: { open: boolean; on
         <Dialog.Overlay style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', zIndex: 100 }} />
         <Dialog.Content style={{ position: 'fixed', top: '15%', left: '50%', transform: 'translateX(-50%)', width: '90%', maxWidth: 520, background: 'var(--surface)', border: '1px solid rgba(var(--fg-rgb),0.1)', borderRadius: 14, padding: 24, zIndex: 101 }}>
           <Dialog.Title style={{ fontFamily: tokens.font.display, fontSize: 18, fontWeight: 400, marginBottom: 6, color: 'var(--fg)' }}>New project</Dialog.Title>
-          <Dialog.Description style={{ fontSize: 12, fontFamily: tokens.font.body, color: 'rgba(var(--fg-rgb),0.4)', marginBottom: 16 }}>
+          <Dialog.Description style={{ fontSize: 12, fontFamily: tokens.font.body, color: 'var(--text-subtle)', marginBottom: 16 }}>
             A project gets an AI-generated plan based on your current zo state.
           </Dialog.Description>
           <input autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder="title (short, specific)" style={{ width: '100%', fontFamily: tokens.font.body, fontSize: 14, padding: '10px 14px', background: 'var(--bg)', border: '1px solid rgba(var(--fg-rgb),0.1)', borderRadius: 8, color: 'var(--fg)', outline: 'none', marginBottom: 10, boxSizing: 'border-box' }} />
           <textarea value={goal} onChange={e => setGoal(e.target.value)} placeholder="what's the goal? one or two sentences." rows={3} style={{ width: '100%', fontFamily: tokens.font.body, fontSize: 13, padding: '10px 14px', background: 'var(--bg)', border: '1px solid rgba(var(--fg-rgb),0.1)', borderRadius: 8, color: 'var(--fg)', outline: 'none', marginBottom: 16, resize: 'vertical', boxSizing: 'border-box', fontWeight: 300 }} />
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button onClick={() => onOpenChange(false)} style={{ fontFamily: tokens.font.body, fontSize: 12, padding: '8px 16px', background: 'transparent', border: '1px solid rgba(var(--fg-rgb),0.1)', borderRadius: 8, color: 'rgba(var(--fg-rgb),0.5)', cursor: 'pointer' }}>cancel</button>
+            <button onClick={() => onOpenChange(false)} style={{ fontFamily: tokens.font.body, fontSize: 12, padding: '8px 16px', background: 'transparent', border: '1px solid rgba(var(--fg-rgb),0.1)', borderRadius: 8, color: 'var(--text-muted)', cursor: 'pointer' }}>cancel</button>
             <button onClick={handleCreate} disabled={creating || !title.trim() || !goal.trim()} style={{ fontFamily: tokens.font.body, fontSize: 12, padding: '8px 16px', background: 'var(--fg)', border: 'none', borderRadius: 8, color: 'var(--bg)', cursor: creating ? 'wait' : 'pointer', fontWeight: 500, opacity: creating ? 0.5 : 1 }}>
               {creating ? 'creating...' : 'create with ai plan'}
             </button>
           </div>
-          <Dialog.Close asChild><button style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', color: 'rgba(var(--fg-rgb),0.3)', fontSize: 16, cursor: 'pointer' }}>x</button></Dialog.Close>
+          <Dialog.Close asChild><button style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 16, cursor: 'pointer' }}>x</button></Dialog.Close>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -575,19 +575,19 @@ function ProjectsPanel({ projects, nodes, onChange }: { projects: Project[]; nod
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
         <span style={{ fontFamily: tokens.font.display, fontSize: 16, fontWeight: 400, color: 'var(--fg)' }}>projects</span>
-        <span style={{ fontSize: 11, color: 'rgba(var(--fg-rgb),0.2)', fontFamily: tokens.font.body }}>{active.length} active{completed.length > 0 ? ` · ${completed.length} done` : ''}</span>
-        <button onClick={() => setDialogOpen(true)} style={{ marginLeft: 'auto', fontSize: 11, padding: '4px 12px', border: '1px dashed rgba(var(--fg-rgb),0.15)', borderRadius: 20, background: 'transparent', color: 'rgba(var(--fg-rgb),0.4)', cursor: 'pointer', fontFamily: tokens.font.body }}>
+        <span style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: tokens.font.body }}>{active.length} active{completed.length > 0 ? ` · ${completed.length} done` : ''}</span>
+        <button onClick={() => setDialogOpen(true)} style={{ marginLeft: 'auto', fontSize: 11, padding: '4px 12px', border: '1px dashed rgba(var(--fg-rgb),0.15)', borderRadius: 20, background: 'transparent', color: 'var(--text-subtle)', cursor: 'pointer', fontFamily: tokens.font.body }}>
           + new project
         </button>
       </div>
       {active.length === 0 && completed.length === 0 ? (
-        <div style={{ padding: '20px 0', color: 'rgba(var(--fg-rgb),0.2)', fontSize: 13, fontFamily: tokens.font.body, fontStyle: 'italic' }}>
+        <div style={{ padding: '20px 0', color: 'var(--text-faint)', fontSize: 13, fontFamily: tokens.font.body, fontStyle: 'italic' }}>
           No projects yet. Create one and zo will generate a plan from your current state.
         </div>
       ) : (
         <>
           {active.map(p => <ProjectCard key={p.id} project={p} nodes={nodes} onChange={onChange} />)}
-          {completed.length > 0 && <div style={{ marginTop: 16, fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(var(--fg-rgb),0.15)', fontFamily: tokens.font.body, marginBottom: 8 }}>completed</div>}
+          {completed.length > 0 && <div style={{ marginTop: 16, fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-faint)', fontFamily: tokens.font.body, marginBottom: 8 }}>completed</div>}
           {completed.map(p => <ProjectCard key={p.id} project={p} nodes={nodes} onChange={onChange} />)}
         </>
       )}
@@ -623,7 +623,7 @@ function Summary({ context, nodes, suggestions }: { context: ContextSnapshot | n
       .then(r => setBriefing(r)).catch(() => setBriefing(null)).finally(() => setLoadingBriefing(false));
   }, [context]);
 
-  if (!context) return <div style={{ color: 'rgba(var(--fg-rgb),0.2)', fontSize: 13, fontFamily: tokens.font.body }}>Loading...</div>;
+  if (!context) return <div style={{ color: 'var(--text-faint)', fontSize: 13, fontFamily: tokens.font.body }}>Loading...</div>;
 
   const totalDone = nodes.reduce((n, nd) => n + nd.items.filter(i => i.status === 'done').length, 0);
   const totalAll = nodes.reduce((n, nd) => n + nd.items.length, 0);
@@ -633,15 +633,15 @@ function Summary({ context, nodes, suggestions }: { context: ContextSnapshot | n
     <div>
       <div style={{ marginBottom: 20, minHeight: 40 }}>
         {loadingBriefing ? (
-          <div style={{ fontSize: 13, color: 'rgba(var(--fg-rgb),0.2)', fontFamily: tokens.font.body, fontStyle: 'italic' }}>reading your zo...</div>
+          <div style={{ fontSize: 13, color: 'var(--text-faint)', fontFamily: tokens.font.body, fontStyle: 'italic' }}>reading your zo...</div>
         ) : briefing ? (
-          <div style={{ fontSize: 14, lineHeight: 1.8, color: 'rgba(var(--fg-rgb),0.55)', fontFamily: tokens.font.body, fontWeight: 300 }}>{briefing}</div>
+          <div style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--text-muted)', fontFamily: tokens.font.body, fontWeight: 300 }}>{briefing}</div>
         ) : null}
       </div>
       <Progress.Root style={{ height: 1, background: 'rgba(var(--fg-rgb),0.06)', borderRadius: 1, overflow: 'hidden', marginBottom: 16 }}>
         <Progress.Indicator style={{ height: '100%', width: `${overallPct}%`, background: 'rgba(var(--fg-rgb),0.3)', transition: 'width 0.5s ease' }} />
       </Progress.Root>
-      <div style={{ fontSize: 11, color: 'rgba(var(--fg-rgb),0.15)', fontFamily: tokens.font.body, fontWeight: 300 }}>
+      <div style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: tokens.font.body, fontWeight: 300 }}>
         click a node to explore it · scroll to zoom · drag to pan
       </div>
     </div>
@@ -683,26 +683,26 @@ function NodeDetail({ node, nodes, suggestions, projects = [], onProjectsChange 
     <ScrollArea.Root style={{ flex: 1, overflow: 'hidden', maxHeight: 500 }}>
       <ScrollArea.Viewport style={{ width: '100%', height: '100%' }}>
         <div style={{ marginBottom: 16 }}>
-          {loading ? <div style={{ fontSize: 12, color: 'rgba(var(--fg-rgb),0.2)', fontFamily: tokens.font.body, fontStyle: 'italic' }}>thinking...</div>
-            : summary ? <div style={{ fontSize: 12, lineHeight: 1.7, color: 'rgba(var(--fg-rgb),0.5)', fontFamily: tokens.font.body, fontWeight: 300 }}>{summary}</div> : null}
+          {loading ? <div style={{ fontSize: 12, color: 'var(--text-faint)', fontFamily: tokens.font.body, fontStyle: 'italic' }}>thinking...</div>
+            : summary ? <div style={{ fontSize: 12, lineHeight: 1.7, color: 'var(--text-muted)', fontFamily: tokens.font.body, fontWeight: 300 }}>{summary}</div> : null}
         </div>
         {connectedNodes.length > 0 && <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(var(--fg-rgb),0.25)', fontFamily: tokens.font.body, marginBottom: 8 }}>connected</div>
+          <div style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-dim)', fontFamily: tokens.font.body, marginBottom: 8 }}>connected</div>
           {connectedNodes.map(cn => <div key={cn.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid rgba(var(--fg-rgb),0.04)' }}>
             <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'rgba(var(--fg-rgb),0.3)' }} />
             <span style={{ fontSize: 13, color: 'rgba(var(--fg-rgb),0.6)', fontFamily: tokens.font.body, fontWeight: 300 }}>{cn.label}</span>
-            <span style={{ fontSize: 10, color: 'rgba(var(--fg-rgb),0.2)', fontFamily: tokens.font.body, marginLeft: 'auto' }}>{cn.type}</span>
+            <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: tokens.font.body, marginLeft: 'auto' }}>{cn.type}</span>
           </div>)}
         </div>}
 
         {/* Project linking */}
         <div style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-            <div style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(var(--fg-rgb),0.25)', fontFamily: tokens.font.body }}>projects</div>
+            <div style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-dim)', fontFamily: tokens.font.body }}>projects</div>
             {unlinkedProjects.length > 0 && (
               <Popover.Root open={linkMenuOpen} onOpenChange={setLinkMenuOpen}>
                 <Popover.Trigger asChild>
-                  <button style={{ marginLeft: 'auto', fontSize: 10, padding: '2px 8px', border: '1px dashed rgba(var(--fg-rgb),0.15)', borderRadius: 10, background: 'transparent', color: 'rgba(var(--fg-rgb),0.4)', cursor: 'pointer', fontFamily: tokens.font.body }}>+ link</button>
+                  <button style={{ marginLeft: 'auto', fontSize: 10, padding: '2px 8px', border: '1px dashed rgba(var(--fg-rgb),0.15)', borderRadius: 10, background: 'transparent', color: 'var(--text-subtle)', cursor: 'pointer', fontFamily: tokens.font.body }}>+ link</button>
                 </Popover.Trigger>
                 <Popover.Portal>
                   <Popover.Content side="left" sideOffset={6} style={{ background: 'var(--surface)', border: '1px solid rgba(var(--fg-rgb),0.1)', borderRadius: 10, padding: 6, zIndex: 60, minWidth: 180, maxHeight: 240, overflow: 'auto' }}>
@@ -719,13 +719,13 @@ function NodeDetail({ node, nodes, suggestions, projects = [], onProjectsChange 
             )}
           </div>
           {linkedToProjects.length === 0 ? (
-            <div style={{ fontSize: 11, color: 'rgba(var(--fg-rgb),0.15)', fontFamily: tokens.font.body, fontStyle: 'italic' }}>not linked to any project</div>
+            <div style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: tokens.font.body, fontStyle: 'italic' }}>not linked to any project</div>
           ) : (
             linkedToProjects.map(p => (
               <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', fontFamily: tokens.font.body }}>
                 <span style={{ fontSize: 12, color: 'rgba(var(--fg-rgb),0.6)', fontWeight: 300, flex: 1 }}>{p.title}</span>
-                <span style={{ fontSize: 10, fontFamily: tokens.font.mono, color: 'rgba(var(--fg-rgb),0.2)' }}>{p.plan.filter(s => s.status === 'done').length}/{p.plan.length}</span>
-                <button onClick={() => unlink(p.id)} style={{ fontSize: 10, padding: 0, border: 'none', background: 'transparent', color: 'rgba(var(--fg-rgb),0.2)', cursor: 'pointer', fontFamily: tokens.font.body }}>unlink</button>
+                <span style={{ fontSize: 10, fontFamily: tokens.font.mono, color: 'var(--text-faint)' }}>{p.plan.filter(s => s.status === 'done').length}/{p.plan.length}</span>
+                <button onClick={() => unlink(p.id)} style={{ fontSize: 10, padding: 0, border: 'none', background: 'transparent', color: 'var(--text-faint)', cursor: 'pointer', fontFamily: tokens.font.body }}>unlink</button>
               </div>
             ))
           )}
@@ -733,7 +733,7 @@ function NodeDetail({ node, nodes, suggestions, projects = [], onProjectsChange 
 
         <Separator.Root style={{ height: 1, background: 'rgba(var(--fg-rgb),0.06)', marginBottom: 16 }} />
         {relatedSuggestions.length > 0 ? <div>
-          <div style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(var(--fg-rgb),0.25)', fontFamily: tokens.font.body, marginBottom: 8 }}>suggestions</div>
+          <div style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-dim)', fontFamily: tokens.font.body, marginBottom: 8 }}>suggestions</div>
           {relatedSuggestions.map((s, i) => <Collapsible.Root key={i}>
             <Collapsible.Trigger asChild><button style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(var(--fg-rgb),0.04)', padding: '8px 0', cursor: 'pointer', color: 'var(--fg)', fontFamily: tokens.font.body }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -741,14 +741,14 @@ function NodeDetail({ node, nodes, suggestions, projects = [], onProjectsChange 
                 <span style={{ fontSize: 12, fontWeight: 300, flex: 1 }}>{s.title}</span>
               </div>
             </button></Collapsible.Trigger>
-            <Collapsible.Content><div style={{ padding: '4px 0 12px 0', fontSize: 11, lineHeight: 1.7, fontFamily: tokens.font.body, color: 'rgba(var(--fg-rgb),0.35)' }}>{s.description}</div></Collapsible.Content>
+            <Collapsible.Content><div style={{ padding: '4px 0 12px 0', fontSize: 11, lineHeight: 1.7, fontFamily: tokens.font.body, color: 'var(--text-subtle)' }}>{s.description}</div></Collapsible.Content>
           </Collapsible.Root>)}
-        </div> : <div style={{ fontSize: 12, color: 'rgba(var(--fg-rgb),0.15)', fontFamily: tokens.font.body, fontStyle: 'italic' }}>no suggestions for this node</div>}
+        </div> : <div style={{ fontSize: 12, color: 'var(--text-faint)', fontFamily: tokens.font.body, fontStyle: 'italic' }}>no suggestions for this node</div>}
         {node.items.length > 0 && <>
           <Separator.Root style={{ height: 1, background: 'rgba(var(--fg-rgb),0.06)', margin: '16px 0' }} />
-          <div style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(var(--fg-rgb),0.25)', fontFamily: tokens.font.body, marginBottom: 8 }}>items</div>
+          <div style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-dim)', fontFamily: tokens.font.body, marginBottom: 8 }}>items</div>
           {node.items.map((item, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', fontSize: 12, fontFamily: tokens.font.body }}>
-            <span style={{ fontFamily: tokens.font.mono, fontSize: 10, color: 'rgba(var(--fg-rgb),0.2)', flexShrink: 0 }}>{item.status === 'done' ? '✓' : item.status === 'todo' ? '○' : '?'}</span>
+            <span style={{ fontFamily: tokens.font.mono, fontSize: 10, color: 'var(--text-faint)', flexShrink: 0 }}>{item.status === 'done' ? '✓' : item.status === 'todo' ? '○' : '?'}</span>
             <span style={{ color: item.status === 'done' ? 'rgba(var(--fg-rgb),0.2)' : 'rgba(var(--fg-rgb),0.55)', textDecoration: item.status === 'done' ? 'line-through' : 'none', fontWeight: 300 }}>{item.label}</span>
           </div>)}
         </>}
@@ -763,28 +763,28 @@ function ActivityPanel({ commits, automations, jobs }: { commits: Commit[]; auto
   return (
     <Tabs.Root defaultValue="commits">
       <Tabs.List style={{ display: 'flex', gap: 0, borderBottom: '1px solid rgba(var(--fg-rgb),0.06)', marginBottom: 16 }}>
-        {['commits', 'automations', 'jobs'].map(tab => <Tabs.Trigger key={tab} value={tab} style={{ fontSize: 12, padding: '8px 16px', border: 'none', borderBottom: '1px solid transparent', background: 'transparent', color: 'rgba(var(--fg-rgb),0.3)', cursor: 'pointer', fontFamily: tokens.font.body, textTransform: 'lowercase', transition: 'all 0.15s' }}>{tab}</Tabs.Trigger>)}
+        {['commits', 'automations', 'jobs'].map(tab => <Tabs.Trigger key={tab} value={tab} style={{ fontSize: 12, padding: '8px 16px', border: 'none', borderBottom: '1px solid transparent', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer', fontFamily: tokens.font.body, textTransform: 'lowercase', transition: 'all 0.15s' }}>{tab}</Tabs.Trigger>)}
       </Tabs.List>
       <Tabs.Content value="commits">
-        {commits.length === 0 ? <div style={{ padding: 20, color: 'rgba(var(--fg-rgb),0.15)', fontSize: 13, fontFamily: tokens.font.body }}>no recent commits</div> :
+        {commits.length === 0 ? <div style={{ padding: 20, color: 'var(--text-faint)', fontSize: 13, fontFamily: tokens.font.body }}>no recent commits</div> :
           commits.slice(0, 12).map((c, i) => <div key={i} style={{ padding: '6px 0', borderBottom: '1px solid rgba(var(--fg-rgb),0.03)', fontSize: 12, display: 'flex', alignItems: 'baseline', gap: 10, fontFamily: tokens.font.body }}>
-            <span style={{ fontFamily: tokens.font.mono, fontSize: 11, color: 'rgba(var(--fg-rgb),0.25)', flexShrink: 0 }}>{c.hash}</span>
-            <span style={{ flex: 1, color: 'rgba(var(--fg-rgb),0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 300 }}>{c.message}</span>
-            <span style={{ fontFamily: tokens.font.mono, fontSize: 10, color: 'rgba(var(--fg-rgb),0.15)', flexShrink: 0 }}>{ago(c.date)}</span>
+            <span style={{ fontFamily: tokens.font.mono, fontSize: 11, color: 'var(--text-dim)', flexShrink: 0 }}>{c.hash}</span>
+            <span style={{ flex: 1, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 300 }}>{c.message}</span>
+            <span style={{ fontFamily: tokens.font.mono, fontSize: 10, color: 'var(--text-faint)', flexShrink: 0 }}>{ago(c.date)}</span>
           </div>)}
       </Tabs.Content>
       <Tabs.Content value="automations">
-        {automations.length === 0 ? <div style={{ padding: 20, color: 'rgba(var(--fg-rgb),0.15)', fontSize: 13, fontFamily: tokens.font.body }}>no automations</div> :
+        {automations.length === 0 ? <div style={{ padding: 20, color: 'var(--text-faint)', fontSize: 13, fontFamily: tokens.font.body }}>no automations</div> :
           automations.map((a, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid rgba(var(--fg-rgb),0.03)' }}>
             <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'rgba(var(--fg-rgb),0.3)' }} />
             <span style={{ fontSize: 13, color: 'rgba(var(--fg-rgb),0.6)', fontFamily: tokens.font.body, fontWeight: 300 }}>{a.skill}</span>
-            <span style={{ fontSize: 11, color: 'rgba(var(--fg-rgb),0.2)', fontFamily: tokens.font.body }}>{a.type}</span>
+            <span style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: tokens.font.body }}>{a.type}</span>
           </div>)}
       </Tabs.Content>
       <Tabs.Content value="jobs">
         {[{ label: 'total', value: jobs.total }, { label: 'completed', value: jobs.completed }, { label: 'pending', value: jobs.pending }, { label: 'failed', value: jobs.failed }].map(row =>
           <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(var(--fg-rgb),0.03)', fontFamily: tokens.font.body }}>
-            <span style={{ fontSize: 13, color: 'rgba(var(--fg-rgb),0.35)', fontWeight: 300 }}>{row.label}</span>
+            <span style={{ fontSize: 13, color: 'var(--text-subtle)', fontWeight: 300 }}>{row.label}</span>
             <span style={{ fontSize: 13, color: row.value > 0 && row.label === 'failed' ? 'var(--fg)' : 'rgba(var(--fg-rgb),0.5)', fontFamily: tokens.font.mono }}>{row.value}</span>
           </div>)}
       </Tabs.Content>
@@ -807,9 +807,9 @@ function AskBar() {
 
   return <>
     <div onClick={() => setOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: '1px solid rgba(var(--fg-rgb),0.06)', cursor: 'text' }}>
-      <span style={{ fontFamily: tokens.font.display, fontSize: 14, color: 'rgba(var(--fg-rgb),0.3)' }}>zo</span>
-      <span style={{ fontFamily: tokens.font.body, fontSize: 13, color: 'rgba(var(--fg-rgb),0.15)', fontWeight: 300 }}>ask about your dashboard...</span>
-      <span style={{ marginLeft: 'auto', fontSize: 10, color: 'rgba(var(--fg-rgb),0.15)', fontFamily: tokens.font.mono, border: '1px solid rgba(var(--fg-rgb),0.08)', padding: '1px 5px', borderRadius: 4 }}>/</span>
+      <span style={{ fontFamily: tokens.font.display, fontSize: 14, color: 'var(--text-dim)' }}>zo</span>
+      <span style={{ fontFamily: tokens.font.body, fontSize: 13, color: 'var(--text-faint)', fontWeight: 300 }}>ask about your dashboard...</span>
+      <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-faint)', fontFamily: tokens.font.mono, border: '1px solid rgba(var(--fg-rgb),0.08)', padding: '1px 5px', borderRadius: 4 }}>/</span>
     </div>
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
@@ -821,7 +821,7 @@ function AskBar() {
             <button onClick={handleAsk} disabled={loading || !question.trim()} style={{ fontFamily: tokens.font.body, fontSize: 13, padding: '10px 18px', background: 'var(--fg)', border: 'none', borderRadius: 8, color: 'var(--bg)', cursor: loading ? 'wait' : 'pointer', fontWeight: 500, opacity: loading ? 0.5 : 1 }}>{loading ? '...' : 'ask'}</button>
           </div>
           {answer && <div style={{ padding: 14, background: 'rgba(var(--fg-rgb),0.03)', borderRadius: 8, fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: tokens.font.body, fontWeight: 300, color: 'rgba(var(--fg-rgb),0.6)' }}>{answer}</div>}
-          <Dialog.Close asChild><button style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', color: 'rgba(var(--fg-rgb),0.2)', fontSize: 16, cursor: 'pointer' }}>x</button></Dialog.Close>
+          <Dialog.Close asChild><button style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', color: 'var(--text-faint)', fontSize: 16, cursor: 'pointer' }}>x</button></Dialog.Close>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -837,23 +837,23 @@ function SuggestionList({ suggestions }: { suggestions: Suggestion[] }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <span style={{ fontFamily: tokens.font.display, fontSize: 16, fontWeight: 400, color: 'var(--fg)' }}>suggestions</span>
-        <span style={{ fontSize: 11, color: 'rgba(var(--fg-rgb),0.2)', fontFamily: tokens.font.body }}>{suggestions.length}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: tokens.font.body }}>{suggestions.length}</span>
         <ToggleGroup.Root type="single" value={filter} onValueChange={v => v && setFilter(v)} style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
           {categories.map(cat => <ToggleGroup.Item key={cat} value={cat} style={{ fontSize: 11, padding: '3px 10px', border: 'none', borderRadius: 20, background: filter === cat ? 'rgba(var(--fg-rgb),0.08)' : 'transparent', color: filter === cat ? 'var(--fg)' : 'rgba(var(--fg-rgb),0.25)', cursor: 'pointer', fontFamily: tokens.font.body, textTransform: 'lowercase' }}>{cat}</ToggleGroup.Item>)}
         </ToggleGroup.Root>
       </div>
-      {filtered.length === 0 ? <div style={{ padding: 24, textAlign: 'center', color: 'rgba(var(--fg-rgb),0.15)', fontSize: 13, fontFamily: tokens.font.body }}>nothing here</div> :
+      {filtered.length === 0 ? <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, fontFamily: tokens.font.body }}>nothing here</div> :
         filtered.map((s, i) => <Collapsible.Root key={i}>
           <Collapsible.Trigger asChild><button style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(var(--fg-rgb),0.04)', padding: '12px 0', cursor: 'pointer', color: 'var(--fg)', fontFamily: tokens.font.body, transition: 'opacity 0.15s' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(var(--fg-rgb),0.25)', width: 60, flexShrink: 0 }}>{s.category}</span>
+              <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-dim)', width: 60, flexShrink: 0 }}>{s.category}</span>
               <span style={{ fontSize: 13, fontWeight: 300, flex: 1 }}>{s.title}</span>
-              {s.source === 'ai' && <span style={{ fontSize: 9, color: 'rgba(var(--fg-rgb),0.2)', border: '1px solid rgba(var(--fg-rgb),0.1)', padding: '1px 6px', borderRadius: 10 }}>ai</span>}
+              {s.source === 'ai' && <span style={{ fontSize: 9, color: 'var(--text-faint)', border: '1px solid rgba(var(--fg-rgb),0.1)', padding: '1px 6px', borderRadius: 10 }}>ai</span>}
             </div>
           </button></Collapsible.Trigger>
           <Collapsible.Content><div style={{ padding: '4px 0 16px 70px', fontSize: 12, lineHeight: 1.7, fontFamily: tokens.font.body }}>
-            <div style={{ color: 'rgba(var(--fg-rgb),0.4)', marginBottom: 8 }}>{s.description}</div>
-            {s.action && <div style={{ fontFamily: tokens.font.mono, fontSize: 11, color: 'rgba(var(--fg-rgb),0.3)', padding: '6px 10px', background: 'rgba(var(--fg-rgb),0.03)', borderRadius: 6 }}>{s.action}</div>}
+            <div style={{ color: 'var(--text-subtle)', marginBottom: 8 }}>{s.description}</div>
+            {s.action && <div style={{ fontFamily: tokens.font.mono, fontSize: 11, color: 'var(--text-dim)', padding: '6px 10px', background: 'rgba(var(--fg-rgb),0.03)', borderRadius: 6 }}>{s.action}</div>}
           </div></Collapsible.Content>
         </Collapsible.Root>)}
     </div>
@@ -887,10 +887,10 @@ function ZoView({ nodes, suggestions = [], projects = [], onProjectsChange, them
                   <Collapsible.Trigger asChild><button style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(var(--fg-rgb),0.04)', padding: '10px 0', cursor: 'pointer', color: 'var(--fg)', fontFamily: tokens.font.body }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 14, fontWeight: 300, flex: 1 }}>{node.label}</span>
-                      <span style={{ fontSize: 11, color: 'rgba(var(--fg-rgb),0.2)', fontFamily: tokens.font.mono }}>{node.items.filter(i => i.status === 'done').length}/{node.items.length}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: tokens.font.mono }}>{node.items.filter(i => i.status === 'done').length}/{node.items.length}</span>
                     </div>
                   </button></Collapsible.Trigger>
-                  <Collapsible.Content><div style={{ padding: '4px 0 16px 20px', fontSize: 11, color: 'rgba(var(--fg-rgb),0.2)', fontFamily: tokens.font.body }}>{node.detail}</div></Collapsible.Content>
+                  <Collapsible.Content><div style={{ padding: '4px 0 16px 20px', fontSize: 11, color: 'var(--text-faint)', fontFamily: tokens.font.body }}>{node.detail}</div></Collapsible.Content>
                 </Collapsible.Root>
               ))}
             </ScrollArea.Viewport><ScrollArea.Scrollbar orientation="vertical" style={{ width: 6, padding: 1 }}><ScrollArea.Thumb style={{ background: 'rgba(var(--fg-rgb),0.15)', borderRadius: 20 }} /></ScrollArea.Scrollbar></ScrollArea.Root>}
@@ -899,9 +899,9 @@ function ZoView({ nodes, suggestions = [], projects = [], onProjectsChange, them
       {selectedNode && <div style={{ background: 'var(--bg)', border: '1px solid rgba(var(--fg-rgb),0.08)', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <span style={{ fontFamily: tokens.font.display, fontSize: 16, fontWeight: 400, color: 'var(--fg)' }}>{selectedNode.label}</span>
-          <button onClick={() => setSelectedId(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'rgba(var(--fg-rgb),0.3)', cursor: 'pointer', fontSize: 14, fontFamily: tokens.font.body }}>x</button>
+          <button onClick={() => setSelectedId(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 14, fontFamily: tokens.font.body }}>x</button>
         </div>
-        <div style={{ fontSize: 11, color: 'rgba(var(--fg-rgb),0.25)', fontFamily: tokens.font.body, marginBottom: 14 }}>{selectedNode.type} · {selectedNode.health} · {selectedNode.detail}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: tokens.font.body, marginBottom: 14 }}>{selectedNode.type} · {selectedNode.health} · {selectedNode.detail}</div>
         <Separator.Root style={{ height: 1, background: 'rgba(var(--fg-rgb),0.06)', marginBottom: 14 }} />
         <NodeDetail node={selectedNode} nodes={nodes} suggestions={suggestions} projects={projects} onProjectsChange={onProjectsChange} />
       </div>}
@@ -919,7 +919,7 @@ function LoadingScreen() {
   return (
     <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', zIndex: 1000 }}>
       <img src="/pegasus.gif" alt="" style={{ width: 260, height: 'auto', opacity: 0.7, filter: 'grayscale(100%) brightness(1.2) var(--pegasus-invert, none)' }} />
-      <div style={{ marginTop: 24, fontFamily: tokens.font.display, fontSize: 13, fontWeight: 400, color: 'rgba(var(--fg-rgb),0.3)', letterSpacing: '0.5px', minHeight: 20 }}>{text.slice(0, charIndex)}</div>
+      <div style={{ marginTop: 24, fontFamily: tokens.font.display, fontSize: 13, fontWeight: 400, color: 'var(--text-dim)', letterSpacing: '0.5px', minHeight: 20 }}>{text.slice(0, charIndex)}</div>
     </div>
   );
 }
@@ -985,13 +985,23 @@ export default function Dashboard() {
           --bg: #000000;
           --surface: #0a0a0a;
           --fg: #ffffff;
+          /* semantic text tiers — tuned for white-on-black */
+          --text-faint: rgba(var(--fg-rgb), 0.22);
+          --text-dim:   rgba(var(--fg-rgb), 0.32);
+          --text-subtle:rgba(var(--fg-rgb), 0.42);
+          --text-muted: rgba(var(--fg-rgb), 0.55);
         }
         [data-theme="light"] {
-          --fg-rgb: 20, 20, 20;
+          --fg-rgb: 0, 0, 0;
           --bg: #fafafa;
           --surface: #ffffff;
-          --fg: #111111;
+          --fg: #000000;
           --pegasus-invert: invert(1);
+          /* lifted for readability against off-white */
+          --text-faint: rgba(var(--fg-rgb), 0.38);
+          --text-dim:   rgba(var(--fg-rgb), 0.52);
+          --text-subtle:rgba(var(--fg-rgb), 0.62);
+          --text-muted: rgba(var(--fg-rgb), 0.72);
         }
         html, body, #root { margin: 0; padding: 0; background: var(--bg); color: var(--fg); transition: background 0.2s ease, color 0.2s ease; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -1008,12 +1018,12 @@ export default function Dashboard() {
               <button disabled={refreshing} style={{ fontFamily: tokens.font.body, fontSize: 12, padding: '7px 20px', border: '1px solid rgba(var(--fg-rgb),0.15)', borderRadius: 20, background: 'transparent', color: refreshing ? 'rgba(var(--fg-rgb),0.3)' : 'var(--fg)', cursor: refreshing ? 'wait' : 'pointer', fontWeight: 400, letterSpacing: '0.5px', transition: 'all 0.2s' }}>{refreshing ? 'reflecting...' : 'reflect'}</button>
             </Popover.Trigger>
             <Popover.Portal><Popover.Content side="bottom" align="end" sideOffset={8} style={{ background: 'var(--surface)', border: '1px solid rgba(var(--fg-rgb),0.1)', borderRadius: 14, padding: 16, width: 340, zIndex: 50, boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }} onOpenAutoFocus={e => { e.preventDefault(); inputRef.current?.focus(); }}>
-              <div style={{ fontSize: 12, color: 'rgba(var(--fg-rgb),0.3)', fontFamily: tokens.font.body, marginBottom: 10 }}>What do you want to understand?</div>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', fontFamily: tokens.font.body, marginBottom: 10 }}>What do you want to understand?</div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input ref={inputRef} value={focus} onChange={e => setFocus(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleReflect(focus || undefined); }} placeholder="what should I ship next..." style={{ flex: 1, fontFamily: tokens.font.body, fontSize: 13, padding: '8px 12px', background: 'var(--bg)', border: '1px solid rgba(var(--fg-rgb),0.1)', borderRadius: 8, color: 'var(--fg)', outline: 'none' }} />
                 <button onClick={() => handleReflect(focus || undefined)} style={{ fontFamily: tokens.font.body, fontSize: 12, padding: '8px 16px', background: 'var(--fg)', border: 'none', borderRadius: 8, color: 'var(--bg)', cursor: 'pointer', fontWeight: 500 }}>go</button>
               </div>
-              <button onClick={() => handleReflect()} style={{ width: '100%', fontFamily: tokens.font.body, fontSize: 11, padding: '8px', background: 'transparent', border: 'none', color: 'rgba(var(--fg-rgb),0.25)', cursor: 'pointer', marginTop: 6 }}>or just reflect</button>
+              <button onClick={() => handleReflect()} style={{ width: '100%', fontFamily: tokens.font.body, fontSize: 11, padding: '8px', background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', marginTop: 6 }}>or just reflect</button>
               <Popover.Arrow style={{ fill: 'var(--surface)' }} />
             </Popover.Content></Popover.Portal>
           </Popover.Root>
