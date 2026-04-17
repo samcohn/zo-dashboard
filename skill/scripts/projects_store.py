@@ -218,12 +218,27 @@ def unlink_node(project_id: str, node_id: str) -> Optional[dict]:
 # ─── Internal helpers ───────────────────────────────────────────────────────
 
 
+VALID_EXECUTORS = {"ask_zo", "run_script", "spawn_agent", "manual"}
+
+
+def _normalize_executor(ex: Any) -> Optional[dict]:
+    """Validate an executor spec. Returns None if invalid or absent."""
+    if not isinstance(ex, dict):
+        return None
+    etype = ex.get("type")
+    if etype not in VALID_EXECUTORS:
+        return None
+    if etype == "manual":
+        return None  # treat as no executor
+    config = ex.get("config") if isinstance(ex.get("config"), dict) else {}
+    return {"type": etype, "config": config}
+
+
 def _normalize_steps(steps: list[Any]) -> list[dict]:
     """Normalize incoming step data. Assigns IDs, validates status, trims strings."""
     normalized = []
     for s in steps:
         if isinstance(s, str):
-            # Plain string → pending step
             normalized.append(
                 {
                     "id": _new_id("step"),
@@ -241,9 +256,30 @@ def _normalize_steps(steps: list[Any]) -> list[dict]:
                 step["notes"] = str(s["notes"])
             if s.get("completed_at"):
                 step["completed_at"] = s["completed_at"]
+            if s.get("last_run_id"):
+                step["last_run_id"] = str(s["last_run_id"])
+            executor = _normalize_executor(s.get("executor"))
+            if executor:
+                step["executor"] = executor
             if step["label"]:
                 normalized.append(step)
     return normalized
+
+
+def set_step_last_run(project_id: str, step_id: str, run_id: str) -> Optional[dict]:
+    """Mark the most recent run for a step. Called by server after dispatching a run."""
+    data = _read_raw()
+    for p in data["projects"]:
+        if p["id"] != project_id:
+            continue
+        for step in p["plan"]:
+            if step["id"] == step_id:
+                step["last_run_id"] = run_id
+                p["updated_at"] = _now()
+                p["last_touched_at"] = p["updated_at"]
+                _write_raw(data)
+                return p
+    return None
 
 
 def _cli():
@@ -304,6 +340,9 @@ def _cli():
             result = {"project": p} if p else {"error": "Not found"}
         elif op == "unlink_node":
             p = unlink_node(req["id"], req["node_id"])
+            result = {"project": p} if p else {"error": "Not found"}
+        elif op == "set_step_last_run":
+            p = set_step_last_run(req["id"], req["step_id"], req["run_id"])
             result = {"project": p} if p else {"error": "Not found"}
         else:
             result = {"error": f"Unknown op: {op}"}

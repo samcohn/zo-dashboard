@@ -35,8 +35,11 @@ async function fetchSuggestions(): Promise<SuggestionsData> { return (await fetc
 async function refreshDashboard(focus?: string) { return (await fetch('/api/zo-refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ai: true, focus: focus || undefined }) })).json(); }
 async function askZo(question: string): Promise<string> { const d = await (await fetch('/api/zo-ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question }) })).json(); return d.answer || 'No response'; }
 
-interface ProjectStep { id: string; label: string; status: 'pending' | 'in_progress' | 'done' | 'blocked'; notes?: string; completed_at?: string; }
+type ExecutorType = 'ask_zo' | 'run_script' | 'spawn_agent' | 'manual';
+interface Executor { type: ExecutorType; config?: Record<string, any>; }
+interface ProjectStep { id: string; label: string; status: 'pending' | 'in_progress' | 'done' | 'blocked'; notes?: string; completed_at?: string; executor?: Executor; last_run_id?: string; }
 interface Project { id: string; title: string; goal: string; plan: ProjectStep[]; linked_node_ids: string[]; status: 'active' | 'paused' | 'done' | 'archived'; created_at: string; updated_at: string; last_touched_at: string; ai_generated: boolean; }
+interface Run { id: string; project_id: string; step_id: string; executor: Executor; status: 'pending' | 'running' | 'success' | 'failed'; created_at: string; started_at: string | null; completed_at: string | null; output: string | null; error: string | null; }
 
 async function fetchProjects(): Promise<Project[]> {
   const r = await fetch('/api/zo-projects');
@@ -62,6 +65,18 @@ async function unlinkNodeFromProject(pid: string, nid: string): Promise<Project 
 async function regeneratePlan(id: string): Promise<Project | null> {
   const r = await fetch(`/api/zo-projects/${id}/regenerate-plan`, { method: 'POST' });
   return (await r.json()).project || null;
+}
+async function runStep(projectId: string, stepId: string): Promise<Run | null> {
+  const r = await fetch(`/api/zo-projects/${projectId}/steps/${stepId}/run`, { method: 'POST' });
+  return (await r.json()).run || null;
+}
+async function getRun(runId: string): Promise<Run | null> {
+  const r = await fetch(`/api/zo-runs/${runId}`);
+  return (await r.json()).run || null;
+}
+async function runToday(projectId: string): Promise<Run[]> {
+  const r = await fetch(`/api/zo-projects/${projectId}/run-today`, { method: 'POST' });
+  return (await r.json()).runs || [];
 }
 
 interface ForceNode { id: string; x: number; y: number; vx: number; vy: number; radius: number; pinned?: boolean; }
@@ -337,19 +352,102 @@ function timeAgo(dateStr: string) {
 
 // ─── ProjectsPanel ───────────────────────────────────────────────────────────
 
+function StepRow({ project, step, onChange }: { project: Project; step: ProjectStep; onChange: () => void }) {
+  const [run, setRun] = useState<Run | null>(null);
+  const [loadingInitial, setLoadingInitial] = useState(!!step.last_run_id);
+  const [outputExpanded, setOutputExpanded] = useState(false);
+  const pollRef = useRef<number | null>(null);
+
+  // Fetch initial run if step has a last_run_id
+  useEffect(() => {
+    if (!step.last_run_id) { setRun(null); setLoadingInitial(false); return; }
+    let cancelled = false;
+    getRun(step.last_run_id).then(r => { if (!cancelled) { setRun(r); setLoadingInitial(false); } });
+    return () => { cancelled = true; };
+  }, [step.last_run_id]);
+
+  // Poll while running
+  useEffect(() => {
+    if (!run || (run.status !== 'pending' && run.status !== 'running')) return;
+    const runId = run.id;
+    pollRef.current = window.setInterval(async () => {
+      const r = await getRun(runId);
+      if (r) {
+        setRun(r);
+        if (r.status === 'success' || r.status === 'failed') {
+          if (pollRef.current) clearInterval(pollRef.current);
+          // If success, auto-mark step done
+          if (r.status === 'success' && step.status !== 'done') {
+            await updateStep(project.id, step.id, { status: 'done' });
+            onChange();
+          }
+        }
+      }
+    }, 1200);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [run?.id, run?.status]);
+
+  async function toggle() {
+    await updateStep(project.id, step.id, { status: step.status === 'done' ? 'pending' : 'done' });
+    onChange();
+  }
+
+  async function kickoff() {
+    const r = await runStep(project.id, step.id);
+    setRun(r);
+  }
+
+  const isExecutable = step.executor && step.executor.type !== 'manual';
+  const isRunning = run && (run.status === 'pending' || run.status === 'running');
+  const hasResult = run && (run.status === 'success' || run.status === 'failed');
+
+  return (
+    <div style={{ padding: '6px 0', fontFamily: tokens.font.body }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button onClick={(e) => { e.stopPropagation(); toggle(); }} style={{ width: 14, height: 14, borderRadius: 3, border: '1px solid rgba(255,255,255,0.3)', background: step.status === 'done' ? 'rgba(255,255,255,0.9)' : 'transparent', cursor: 'pointer', color: '#000', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}>
+          {step.status === 'done' ? '✓' : ''}
+        </button>
+        <span style={{ fontSize: 13, color: step.status === 'done' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.7)', textDecoration: step.status === 'done' ? 'line-through' : 'none', fontWeight: 300, flex: 1 }}>{step.label}</span>
+        {isExecutable && step.executor && (
+          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', fontFamily: tokens.font.mono, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{step.executor.type.replace('_', ' ')}</span>
+        )}
+        {isExecutable && !isRunning && (
+          <button onClick={(e) => { e.stopPropagation(); kickoff(); }} disabled={loadingInitial} style={{ fontSize: 10, padding: '2px 8px', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 10, background: 'transparent', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontFamily: tokens.font.body }}>
+            {run ? 'rerun' : 'run ▸'}
+          </button>
+        )}
+        {isRunning && (
+          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontFamily: tokens.font.body, fontStyle: 'italic' }}>
+            running…
+          </span>
+        )}
+        {hasResult && run && (
+          <button onClick={(e) => { e.stopPropagation(); setOutputExpanded(x => !x); }} style={{ fontSize: 10, padding: '2px 8px', border: 'none', background: 'transparent', color: run.status === 'failed' ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.35)', cursor: 'pointer', fontFamily: tokens.font.body }}>
+            {run.status === 'failed' ? '⚠ failed' : outputExpanded ? 'hide' : 'show result'}
+          </button>
+        )}
+      </div>
+      {hasResult && run && outputExpanded && (
+        <div style={{ marginTop: 6, marginLeft: 22, padding: 10, background: 'rgba(255,255,255,0.03)', borderRadius: 6, fontSize: 11, lineHeight: 1.6, color: run.status === 'failed' ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.55)', fontFamily: tokens.font.mono, whiteSpace: 'pre-wrap', maxHeight: 260, overflow: 'auto' }}>
+          {run.error ? `Error: ${run.error}\n\n` : ''}
+          {run.output || '(no output)'}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProjectCard({ project, nodes, onChange }: { project: Project; nodes: ZoNode[]; onChange: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [runningToday, setRunningToday] = useState(false);
   const doneCount = project.plan.filter(s => s.status === 'done').length;
   const totalCount = project.plan.length;
   const pct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
   const nextStep = project.plan.find(s => s.status !== 'done');
   const linkedNodes = project.linked_node_ids.map(id => nodes.find(n => n.id === id)).filter((n): n is ZoNode => !!n);
+  const executableCount = project.plan.filter(s => s.status === 'pending' && s.executor && s.executor.type !== 'manual').length;
 
-  async function toggleStep(step: ProjectStep) {
-    await updateStep(project.id, step.id, { status: step.status === 'done' ? 'pending' : 'done' });
-    onChange();
-  }
   async function handleRegenerate() {
     setRegenerating(true);
     await regeneratePlan(project.id);
@@ -359,6 +457,13 @@ function ProjectCard({ project, nodes, onChange }: { project: Project; nodes: Zo
   async function handleArchive() {
     if (!confirm(`Archive "${project.title}"?`)) return;
     await archiveProject(project.id);
+    onChange();
+  }
+  async function handleRunToday() {
+    if (executableCount === 0) return;
+    setRunningToday(true);
+    await runToday(project.id);
+    setRunningToday(false);
     onChange();
   }
 
@@ -386,12 +491,7 @@ function ProjectCard({ project, nodes, onChange }: { project: Project; nodes: Zo
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', fontStyle: 'italic', fontFamily: tokens.font.body }}>No plan yet.</div>
             ) : (
               project.plan.map(step => (
-                <div key={step.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontFamily: tokens.font.body }}>
-                  <button onClick={(e) => { e.stopPropagation(); toggleStep(step); }} style={{ width: 14, height: 14, borderRadius: 3, border: '1px solid rgba(255,255,255,0.3)', background: step.status === 'done' ? 'rgba(255,255,255,0.9)' : 'transparent', cursor: 'pointer', color: '#000', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}>
-                    {step.status === 'done' ? '✓' : ''}
-                  </button>
-                  <span style={{ fontSize: 13, color: step.status === 'done' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.7)', textDecoration: step.status === 'done' ? 'line-through' : 'none', fontWeight: 300 }}>{step.label}</span>
-                </div>
+                <StepRow key={step.id} project={project} step={step} onChange={onChange} />
               ))
             )}
             {linkedNodes.length > 0 && (
@@ -403,6 +503,11 @@ function ProjectCard({ project, nodes, onChange }: { project: Project; nodes: Zo
               </div>
             )}
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              {executableCount > 0 && (
+                <button onClick={handleRunToday} disabled={runningToday} style={{ fontSize: 11, padding: '4px 12px', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 14, background: 'rgba(255,255,255,0.06)', color: '#fff', cursor: runningToday ? 'wait' : 'pointer', fontFamily: tokens.font.body, fontWeight: 400 }}>
+                  {runningToday ? 'dispatching…' : `run today (${executableCount})`}
+                </button>
+              )}
               <button onClick={handleRegenerate} disabled={regenerating} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, background: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: regenerating ? 'wait' : 'pointer', fontFamily: tokens.font.body }}>
                 {regenerating ? 'regenerating...' : 'regenerate plan'}
               </button>

@@ -59,7 +59,43 @@ async function projectsCall(payload: Record<string, any>): Promise<any> {
   }
 }
 
-async function generatePlan(title: string, goal: string, context: any): Promise<string[]> {
+async function runsCall(payload: Record<string, any>): Promise<any> {
+  const proc = Bun.spawn(
+    ["python3", resolve(SCRIPTS_DIR, "runs_store.py")],
+    {
+      cwd: WORKSPACE,
+      stdin: "pipe",
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
+  proc.stdin.write(JSON.stringify(payload));
+  proc.stdin.end();
+  await proc.exited;
+  const out = await new Response(proc.stdout).text();
+  try {
+    return JSON.parse(out);
+  } catch {
+    const err = await new Response(proc.stderr).text();
+    return { error: `runs_store error: ${err || out}` };
+  }
+}
+
+function dispatchExecutor(runId: string): void {
+  // Fire-and-forget: spawn executor.py detached so the HTTP request returns fast
+  Bun.spawn(
+    ["python3", resolve(SCRIPTS_DIR, "executor.py"), runId],
+    {
+      cwd: WORKSPACE,
+      stdout: "ignore",
+      stderr: "ignore",
+      stdin: "ignore",
+      env: process.env,
+    },
+  );
+}
+
+async function generatePlan(title: string, goal: string, context: any): Promise<string[] | any[]> {
   const zoToken = process.env.ZO_CLIENT_IDENTITY_TOKEN;
   if (!zoToken) return [];
   const skills = (context?.sections?.skills || []).map((s: any) => s.name).join(", ");
@@ -67,7 +103,7 @@ async function generatePlan(title: string, goal: string, context: any): Promise<
     .slice(0, 5)
     .map((c: any) => c.message)
     .join("; ");
-  const prompt = `You are breaking down a project into actionable steps for a Zo Computer user.
+  const prompt = `Break down a project into 4-7 actionable steps. Each step should include an executor hint so Zo can help run it automatically.
 
 Project title: ${title}
 Project goal: ${goal}
@@ -76,8 +112,29 @@ Context:
 - Installed skills: ${skills}
 - Recent commits: ${recentCommits}
 
-Return ONLY a JSON array of 4-7 imperative action-step strings. No explanation, no markdown fences, no prose. Each step must be specific and something the user can actually do or verify. Example format:
-["Set up Foo", "Wire Bar to Baz", "Test with real data", "Deploy to production"]`;
+Available executor types:
+- "ask_zo": ask Zo a question to research/draft/summarize (fast, synchronous)
+- "spawn_agent": delegate a multi-step task to an autonomous Claude agent (slow, powerful)
+- "manual": user does it themselves (default for physical/external tasks)
+
+Return ONLY a JSON array of step objects. Each object:
+{
+  "label": "imperative action phrase",
+  "executor": { "type": "ask_zo"|"spawn_agent"|"manual", "config": {...} }
+}
+
+For ask_zo, config should be { "prompt": "specific question for zo" }.
+For spawn_agent, config should be { "task": "detailed task description with success criteria" }.
+For manual, omit config.
+
+Example:
+[
+  {"label": "Research competitor pricing", "executor": {"type": "ask_zo", "config": {"prompt": "Summarize pricing for the top 5 restaurant booking apps"}}},
+  {"label": "Draft the API contract", "executor": {"type": "spawn_agent", "config": {"task": "Look at restaurant-booking skill and draft an OpenAPI spec for a new /reservations endpoint. Output the spec."}}},
+  {"label": "Get stakeholder sign-off", "executor": {"type": "manual"}}
+]
+
+No prose, no markdown fences, no explanation. Just the JSON array.`;
   try {
     const resp = await fetch("https://api.zo.computer/zo/ask", {
       method: "POST",
@@ -89,13 +146,30 @@ Return ONLY a JSON array of 4-7 imperative action-step strings. No explanation, 
     });
     const data = (await resp.json()) as { output?: string };
     let text = (data.output || "").trim();
-    // Strip markdown fences if present
     text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
     const parsed = JSON.parse(text);
-    if (Array.isArray(parsed)) {
-      return parsed.filter((s) => typeof s === "string" && s.trim()).slice(0, 10);
-    }
-    return [];
+    if (!Array.isArray(parsed)) return [];
+    // Normalize: accept strings (legacy) or objects (new)
+    return parsed
+      .map((s: any) => {
+        if (typeof s === "string" && s.trim()) {
+          return { label: s.trim() };
+        }
+        if (s && typeof s === "object" && typeof s.label === "string") {
+          const step: any = { label: s.label.trim() };
+          if (
+            s.executor &&
+            typeof s.executor === "object" &&
+            typeof s.executor.type === "string"
+          ) {
+            step.executor = s.executor;
+          }
+          return step;
+        }
+        return null;
+      })
+      .filter((s: any) => s && s.label)
+      .slice(0, 10);
   } catch {
     return [];
   }
@@ -412,13 +486,116 @@ const server = Bun.serve({
             { status: 502, headers },
           );
         }
+        // Plan items can be strings (legacy) or {label, executor} objects (new)
+        const planSteps = plan.map((p: any) =>
+          typeof p === "string" ? { label: p, status: "pending" } : { ...p, status: "pending" },
+        );
         const r = await projectsCall({
           op: "update",
           id: projectId,
-          patch: { plan: plan.map((label) => ({ label, status: "pending" })) },
+          patch: { plan: planSteps },
         });
         return new Response(JSON.stringify(r), { headers });
       }
+
+      // POST /api/projects/:id/steps/:stepId/run — execute a step
+      const stepRunMatch = subpath?.match(/^steps\/([^\/]+)\/run$/);
+      if (stepRunMatch && req.method === "POST") {
+        const stepId = stepRunMatch[1];
+        const proj = await projectsCall({ op: "get", id: projectId });
+        if (proj.error) {
+          return new Response(JSON.stringify(proj), { status: 404, headers });
+        }
+        const step = proj.project.plan.find((s: any) => s.id === stepId);
+        if (!step) {
+          return new Response(JSON.stringify({ error: "Step not found" }), {
+            status: 404,
+            headers,
+          });
+        }
+        if (!step.executor || step.executor.type === "manual") {
+          return new Response(
+            JSON.stringify({ error: "Step has no executable executor" }),
+            { status: 400, headers },
+          );
+        }
+        const runRes = await runsCall({
+          op: "create",
+          project_id: projectId,
+          step_id: stepId,
+          executor_type: step.executor.type,
+          executor_config: step.executor.config || {},
+        });
+        if (runRes.error) {
+          return new Response(JSON.stringify(runRes), { status: 500, headers });
+        }
+        await projectsCall({
+          op: "set_step_last_run",
+          id: projectId,
+          step_id: stepId,
+          run_id: runRes.run.id,
+        });
+        dispatchExecutor(runRes.run.id);
+        return new Response(JSON.stringify(runRes), { status: 202, headers });
+      }
+
+      // POST /api/projects/:id/run-today — fire all pending executable steps in parallel
+      if (subpath === "run-today" && req.method === "POST") {
+        const proj = await projectsCall({ op: "get", id: projectId });
+        if (proj.error) {
+          return new Response(JSON.stringify(proj), { status: 404, headers });
+        }
+        const executableSteps = proj.project.plan.filter(
+          (s: any) =>
+            s.status === "pending" &&
+            s.executor &&
+            s.executor.type !== "manual",
+        );
+        const runs = [];
+        for (const step of executableSteps) {
+          const runRes = await runsCall({
+            op: "create",
+            project_id: projectId,
+            step_id: step.id,
+            executor_type: step.executor.type,
+            executor_config: step.executor.config || {},
+          });
+          if (!runRes.error) {
+            await projectsCall({
+              op: "set_step_last_run",
+              id: projectId,
+              step_id: step.id,
+              run_id: runRes.run.id,
+            });
+            dispatchExecutor(runRes.run.id);
+            runs.push(runRes.run);
+          }
+        }
+        return new Response(JSON.stringify({ runs }), { status: 202, headers });
+      }
+    }
+
+    // GET /api/runs/:runId — poll a run's status
+    const runMatch = url.pathname.match(/^\/api\/runs\/([^\/]+)$/);
+    if (runMatch && req.method === "GET") {
+      const r = await runsCall({ op: "get", run_id: runMatch[1] });
+      return new Response(JSON.stringify(r), {
+        status: r.error ? 404 : 200,
+        headers,
+      });
+    }
+
+    // GET /api/projects/:projectId/steps/:stepId/runs — run history for a step
+    const stepRunsMatch = url.pathname.match(
+      /^\/api\/projects\/([^\/]+)\/steps\/([^\/]+)\/runs$/,
+    );
+    if (stepRunsMatch && req.method === "GET") {
+      const r = await runsCall({
+        op: "list_for_step",
+        project_id: stepRunsMatch[1],
+        step_id: stepRunsMatch[2],
+      });
+      return new Response(JSON.stringify(r), { headers });
     }
 
     // Health check
