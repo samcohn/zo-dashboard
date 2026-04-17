@@ -37,6 +37,70 @@ function readJSON(path: string): any {
   return null;
 }
 
+async function projectsCall(payload: Record<string, any>): Promise<any> {
+  const proc = Bun.spawn(
+    ["python3", resolve(SCRIPTS_DIR, "projects_store.py")],
+    {
+      cwd: WORKSPACE,
+      stdin: "pipe",
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
+  proc.stdin.write(JSON.stringify(payload));
+  proc.stdin.end();
+  await proc.exited;
+  const out = await new Response(proc.stdout).text();
+  try {
+    return JSON.parse(out);
+  } catch {
+    const err = await new Response(proc.stderr).text();
+    return { error: `projects_store error: ${err || out}` };
+  }
+}
+
+async function generatePlan(title: string, goal: string, context: any): Promise<string[]> {
+  const zoToken = process.env.ZO_CLIENT_IDENTITY_TOKEN;
+  if (!zoToken) return [];
+  const skills = (context?.sections?.skills || []).map((s: any) => s.name).join(", ");
+  const recentCommits = (context?.sections?.activity?.git_commits || [])
+    .slice(0, 5)
+    .map((c: any) => c.message)
+    .join("; ");
+  const prompt = `You are breaking down a project into actionable steps for a Zo Computer user.
+
+Project title: ${title}
+Project goal: ${goal}
+
+Context:
+- Installed skills: ${skills}
+- Recent commits: ${recentCommits}
+
+Return ONLY a JSON array of 4-7 imperative action-step strings. No explanation, no markdown fences, no prose. Each step must be specific and something the user can actually do or verify. Example format:
+["Set up Foo", "Wire Bar to Baz", "Test with real data", "Deploy to production"]`;
+  try {
+    const resp = await fetch("https://api.zo.computer/zo/ask", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${zoToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ input: prompt }),
+    });
+    const data = (await resp.json()) as { output?: string };
+    let text = (data.output || "").trim();
+    // Strip markdown fences if present
+    text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((s) => typeof s === "string" && s.trim()).slice(0, 10);
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
 async function runCollector(): Promise<any> {
   try {
     const proc = Bun.spawn(["python3", resolve(SCRIPTS_DIR, "collect_context.py")], {
@@ -189,6 +253,172 @@ const server = Bun.serve({
       const context = readJSON(resolve(DASHBOARD_DIR, "context.json")) || {};
       const answer = await askZo(question, context);
       return new Response(JSON.stringify({ question, answer }), { headers });
+    }
+
+    // ─── Projects API ─────────────────────────────────────────────────
+    // GET /api/projects           — list all (non-archived)
+    // POST /api/projects          — create (body: { title, goal, auto_plan?: boolean })
+    // GET /api/projects/:id       — get one
+    // PATCH /api/projects/:id     — update (body: { patch: {...} })
+    // DELETE /api/projects/:id    — archive
+    // PATCH /api/projects/:id/steps/:stepId  — update a step
+    // POST /api/projects/:id/link-node       — link a node (body: { node_id })
+    // POST /api/projects/:id/unlink-node     — unlink a node
+    // POST /api/projects/:id/regenerate-plan — regenerate plan via AI
+
+    if (url.pathname === "/api/projects" && req.method === "GET") {
+      const include = url.searchParams.get("include_archived") === "true";
+      const r = await projectsCall({ op: "list", include_archived: include });
+      return new Response(JSON.stringify(r), { headers });
+    }
+
+    if (url.pathname === "/api/projects" && req.method === "POST") {
+      try {
+        const body = (await req.json()) as any;
+        const title = String(body?.title || "").trim();
+        const goal = String(body?.goal || "").trim();
+        if (!title || !goal) {
+          return new Response(
+            JSON.stringify({ error: "title and goal are required" }),
+            { status: 400, headers },
+          );
+        }
+        let plan_steps = Array.isArray(body?.plan_steps) ? body.plan_steps : [];
+        let ai_generated = false;
+        if (body?.auto_plan && plan_steps.length === 0) {
+          const context = readJSON(resolve(DASHBOARD_DIR, "context.json")) || {};
+          plan_steps = await generatePlan(title, goal, context);
+          ai_generated = plan_steps.length > 0;
+        }
+        const r = await projectsCall({
+          op: "create",
+          title,
+          goal,
+          plan_steps,
+          ai_generated,
+          linked_node_ids: body?.linked_node_ids || [],
+        });
+        return new Response(JSON.stringify(r), {
+          status: r.error ? 400 : 201,
+          headers,
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: String(e) }), {
+          status: 500,
+          headers,
+        });
+      }
+    }
+
+    // Nested project routes: /api/projects/:id/...
+    const projectMatch = url.pathname.match(/^\/api\/projects\/([^\/]+)(?:\/(.+))?$/);
+    if (projectMatch) {
+      const projectId = projectMatch[1];
+      const subpath = projectMatch[2];
+
+      if (!subpath && req.method === "GET") {
+        const r = await projectsCall({ op: "get", id: projectId });
+        return new Response(JSON.stringify(r), {
+          status: r.error ? 404 : 200,
+          headers,
+        });
+      }
+
+      if (!subpath && req.method === "PATCH") {
+        const body = (await req.json()) as any;
+        const r = await projectsCall({
+          op: "update",
+          id: projectId,
+          patch: body?.patch || body || {},
+        });
+        return new Response(JSON.stringify(r), {
+          status: r.error ? 404 : 200,
+          headers,
+        });
+      }
+
+      if (!subpath && req.method === "DELETE") {
+        const r = await projectsCall({ op: "archive", id: projectId });
+        return new Response(JSON.stringify(r), {
+          status: r.error ? 404 : 200,
+          headers,
+        });
+      }
+
+      if (subpath?.startsWith("steps/") && req.method === "PATCH") {
+        const stepId = subpath.slice("steps/".length);
+        const body = (await req.json()) as any;
+        const r = await projectsCall({
+          op: "update_step",
+          id: projectId,
+          step_id: stepId,
+          patch: body?.patch || body || {},
+        });
+        return new Response(JSON.stringify(r), {
+          status: r.error ? 404 : 200,
+          headers,
+        });
+      }
+
+      if (subpath === "link-node" && req.method === "POST") {
+        const body = (await req.json()) as any;
+        if (!body?.node_id) {
+          return new Response(
+            JSON.stringify({ error: "node_id is required" }),
+            { status: 400, headers },
+          );
+        }
+        const r = await projectsCall({
+          op: "link_node",
+          id: projectId,
+          node_id: body.node_id,
+        });
+        return new Response(JSON.stringify(r), {
+          status: r.error ? 404 : 200,
+          headers,
+        });
+      }
+
+      if (subpath === "unlink-node" && req.method === "POST") {
+        const body = (await req.json()) as any;
+        const r = await projectsCall({
+          op: "unlink_node",
+          id: projectId,
+          node_id: body?.node_id,
+        });
+        return new Response(JSON.stringify(r), {
+          status: r.error ? 404 : 200,
+          headers,
+        });
+      }
+
+      if (subpath === "regenerate-plan" && req.method === "POST") {
+        const existing = await projectsCall({ op: "get", id: projectId });
+        if (existing.error) {
+          return new Response(JSON.stringify(existing), {
+            status: 404,
+            headers,
+          });
+        }
+        const context = readJSON(resolve(DASHBOARD_DIR, "context.json")) || {};
+        const plan = await generatePlan(
+          existing.project.title,
+          existing.project.goal,
+          context,
+        );
+        if (plan.length === 0) {
+          return new Response(
+            JSON.stringify({ error: "Plan generation failed" }),
+            { status: 502, headers },
+          );
+        }
+        const r = await projectsCall({
+          op: "update",
+          id: projectId,
+          patch: { plan: plan.map((label) => ({ label, status: "pending" })) },
+        });
+        return new Response(JSON.stringify(r), { headers });
+      }
     }
 
     // Health check

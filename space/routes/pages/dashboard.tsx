@@ -35,6 +35,35 @@ async function fetchSuggestions(): Promise<SuggestionsData> { return (await fetc
 async function refreshDashboard(focus?: string) { return (await fetch('/api/zo-refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ai: true, focus: focus || undefined }) })).json(); }
 async function askZo(question: string): Promise<string> { const d = await (await fetch('/api/zo-ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question }) })).json(); return d.answer || 'No response'; }
 
+interface ProjectStep { id: string; label: string; status: 'pending' | 'in_progress' | 'done' | 'blocked'; notes?: string; completed_at?: string; }
+interface Project { id: string; title: string; goal: string; plan: ProjectStep[]; linked_node_ids: string[]; status: 'active' | 'paused' | 'done' | 'archived'; created_at: string; updated_at: string; last_touched_at: string; ai_generated: boolean; }
+
+async function fetchProjects(): Promise<Project[]> {
+  const r = await fetch('/api/zo-projects');
+  return (await r.json()).projects || [];
+}
+async function createProject(title: string, goal: string, autoPlan = true): Promise<Project | null> {
+  const r = await fetch('/api/zo-projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, goal, auto_plan: autoPlan }) });
+  return (await r.json()).project || null;
+}
+async function updateStep(pid: string, sid: string, patch: Partial<ProjectStep>): Promise<Project | null> {
+  const r = await fetch(`/api/zo-projects/${pid}/steps/${sid}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ patch }) });
+  return (await r.json()).project || null;
+}
+async function archiveProject(id: string) { await fetch(`/api/zo-projects/${id}`, { method: 'DELETE' }); }
+async function linkNodeToProject(pid: string, nid: string): Promise<Project | null> {
+  const r = await fetch(`/api/zo-projects/${pid}/link-node`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ node_id: nid }) });
+  return (await r.json()).project || null;
+}
+async function unlinkNodeFromProject(pid: string, nid: string): Promise<Project | null> {
+  const r = await fetch(`/api/zo-projects/${pid}/unlink-node`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ node_id: nid }) });
+  return (await r.json()).project || null;
+}
+async function regeneratePlan(id: string): Promise<Project | null> {
+  const r = await fetch(`/api/zo-projects/${id}/regenerate-plan`, { method: 'POST' });
+  return (await r.json()).project || null;
+}
+
 interface ForceNode { id: string; x: number; y: number; vx: number; vy: number; radius: number; pinned?: boolean; }
 interface ForceEdge { source: string; target: string; }
 
@@ -306,6 +335,157 @@ function timeAgo(dateStr: string) {
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`; return `${Math.floor(diff / 86400)}d ago`;
 }
 
+// ─── ProjectsPanel ───────────────────────────────────────────────────────────
+
+function ProjectCard({ project, nodes, onChange }: { project: Project; nodes: ZoNode[]; onChange: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const doneCount = project.plan.filter(s => s.status === 'done').length;
+  const totalCount = project.plan.length;
+  const pct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
+  const nextStep = project.plan.find(s => s.status !== 'done');
+  const linkedNodes = project.linked_node_ids.map(id => nodes.find(n => n.id === id)).filter((n): n is ZoNode => !!n);
+
+  async function toggleStep(step: ProjectStep) {
+    await updateStep(project.id, step.id, { status: step.status === 'done' ? 'pending' : 'done' });
+    onChange();
+  }
+  async function handleRegenerate() {
+    setRegenerating(true);
+    await regeneratePlan(project.id);
+    setRegenerating(false);
+    onChange();
+  }
+  async function handleArchive() {
+    if (!confirm(`Archive "${project.title}"?`)) return;
+    await archiveProject(project.id);
+    onChange();
+  }
+
+  return (
+    <Collapsible.Root open={expanded} onOpenChange={setExpanded}>
+      <div style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 16, marginBottom: 10, background: 'rgba(255,255,255,0.01)' }}>
+        <Collapsible.Trigger asChild>
+          <button style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', color: '#fff', fontFamily: tokens.font.body, padding: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
+              <span style={{ fontFamily: tokens.font.display, fontSize: 15, fontWeight: 400, color: '#fff', flex: 1 }}>{project.title}</span>
+              {project.ai_generated && <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: 8 }}>ai</span>}
+              <span style={{ fontFamily: tokens.font.mono, fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>{doneCount}/{totalCount}</span>
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>›</span>
+            </div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 300, marginBottom: 8, lineHeight: 1.5 }}>{project.goal}</div>
+            <Progress.Root style={{ height: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 1, overflow: 'hidden', marginBottom: 8 }}>
+              <Progress.Indicator style={{ height: '100%', width: `${pct}%`, background: 'rgba(255,255,255,0.35)', transition: 'width 0.4s ease' }} />
+            </Progress.Root>
+            {nextStep && !expanded && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontFamily: tokens.font.body }}><span style={{ color: 'rgba(255,255,255,0.2)', marginRight: 6 }}>next:</span>{nextStep.label}</div>}
+          </button>
+        </Collapsible.Trigger>
+        <Collapsible.Content>
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+            {project.plan.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', fontStyle: 'italic', fontFamily: tokens.font.body }}>No plan yet.</div>
+            ) : (
+              project.plan.map(step => (
+                <div key={step.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontFamily: tokens.font.body }}>
+                  <button onClick={(e) => { e.stopPropagation(); toggleStep(step); }} style={{ width: 14, height: 14, borderRadius: 3, border: '1px solid rgba(255,255,255,0.3)', background: step.status === 'done' ? 'rgba(255,255,255,0.9)' : 'transparent', cursor: 'pointer', color: '#000', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}>
+                    {step.status === 'done' ? '✓' : ''}
+                  </button>
+                  <span style={{ fontSize: 13, color: step.status === 'done' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.7)', textDecoration: step.status === 'done' ? 'line-through' : 'none', fontWeight: 300 }}>{step.label}</span>
+                </div>
+              ))
+            )}
+            {linkedNodes.length > 0 && (
+              <div style={{ marginTop: 14, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(255,255,255,0.2)', marginBottom: 6, fontFamily: tokens.font.body }}>linked</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {linkedNodes.map(n => <span key={n.id} style={{ fontSize: 11, padding: '2px 8px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: 'rgba(255,255,255,0.5)', fontFamily: tokens.font.body }}>{n.label}</span>)}
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <button onClick={handleRegenerate} disabled={regenerating} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, background: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: regenerating ? 'wait' : 'pointer', fontFamily: tokens.font.body }}>
+                {regenerating ? 'regenerating...' : 'regenerate plan'}
+              </button>
+              <button onClick={handleArchive} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, background: 'transparent', color: 'rgba(255,255,255,0.25)', cursor: 'pointer', fontFamily: tokens.font.body, marginLeft: 'auto' }}>
+                archive
+              </button>
+            </div>
+          </div>
+        </Collapsible.Content>
+      </div>
+    </Collapsible.Root>
+  );
+}
+
+function NewProjectDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (o: boolean) => void; onCreated: () => void }) {
+  const [title, setTitle] = useState('');
+  const [goal, setGoal] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  async function handleCreate() {
+    if (!title.trim() || !goal.trim() || creating) return;
+    setCreating(true);
+    await createProject(title.trim(), goal.trim(), true);
+    setCreating(false);
+    setTitle(''); setGoal('');
+    onOpenChange(false);
+    onCreated();
+  }
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', zIndex: 100 }} />
+        <Dialog.Content style={{ position: 'fixed', top: '15%', left: '50%', transform: 'translateX(-50%)', width: '90%', maxWidth: 520, background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: 24, zIndex: 101 }}>
+          <Dialog.Title style={{ fontFamily: tokens.font.display, fontSize: 18, fontWeight: 400, marginBottom: 6, color: '#fff' }}>New project</Dialog.Title>
+          <Dialog.Description style={{ fontSize: 12, fontFamily: tokens.font.body, color: 'rgba(255,255,255,0.4)', marginBottom: 16 }}>
+            A project gets an AI-generated plan based on your current zo state.
+          </Dialog.Description>
+          <input autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder="title (short, specific)" style={{ width: '100%', fontFamily: tokens.font.body, fontSize: 14, padding: '10px 14px', background: '#000', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', outline: 'none', marginBottom: 10, boxSizing: 'border-box' }} />
+          <textarea value={goal} onChange={e => setGoal(e.target.value)} placeholder="what's the goal? one or two sentences." rows={3} style={{ width: '100%', fontFamily: tokens.font.body, fontSize: 13, padding: '10px 14px', background: '#000', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', outline: 'none', marginBottom: 16, resize: 'vertical', boxSizing: 'border-box', fontWeight: 300 }} />
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={() => onOpenChange(false)} style={{ fontFamily: tokens.font.body, fontSize: 12, padding: '8px 16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}>cancel</button>
+            <button onClick={handleCreate} disabled={creating || !title.trim() || !goal.trim()} style={{ fontFamily: tokens.font.body, fontSize: 12, padding: '8px 16px', background: '#fff', border: 'none', borderRadius: 8, color: '#000', cursor: creating ? 'wait' : 'pointer', fontWeight: 500, opacity: creating ? 0.5 : 1 }}>
+              {creating ? 'creating...' : 'create with ai plan'}
+            </button>
+          </div>
+          <Dialog.Close asChild><button style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: 16, cursor: 'pointer' }}>x</button></Dialog.Close>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function ProjectsPanel({ projects, nodes, onChange }: { projects: Project[]; nodes: ZoNode[]; onChange: () => void }) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const active = projects.filter(p => p.status === 'active' || p.status === 'paused');
+  const completed = projects.filter(p => p.status === 'done');
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
+        <span style={{ fontFamily: tokens.font.display, fontSize: 16, fontWeight: 400, color: '#fff' }}>projects</span>
+        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', fontFamily: tokens.font.body }}>{active.length} active{completed.length > 0 ? ` · ${completed.length} done` : ''}</span>
+        <button onClick={() => setDialogOpen(true)} style={{ marginLeft: 'auto', fontSize: 11, padding: '4px 12px', border: '1px dashed rgba(255,255,255,0.15)', borderRadius: 20, background: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontFamily: tokens.font.body }}>
+          + new project
+        </button>
+      </div>
+      {active.length === 0 && completed.length === 0 ? (
+        <div style={{ padding: '20px 0', color: 'rgba(255,255,255,0.2)', fontSize: 13, fontFamily: tokens.font.body, fontStyle: 'italic' }}>
+          No projects yet. Create one and zo will generate a plan from your current state.
+        </div>
+      ) : (
+        <>
+          {active.map(p => <ProjectCard key={p.id} project={p} nodes={nodes} onChange={onChange} />)}
+          {completed.length > 0 && <div style={{ marginTop: 16, fontSize: 10, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(255,255,255,0.15)', fontFamily: tokens.font.body, marginBottom: 8 }}>completed</div>}
+          {completed.map(p => <ProjectCard key={p.id} project={p} nodes={nodes} onChange={onChange} />)}
+        </>
+      )}
+      <NewProjectDialog open={dialogOpen} onOpenChange={setDialogOpen} onCreated={onChange} />
+    </div>
+  );
+}
+
 function Summary({ context, nodes, suggestions }: { context: ContextSnapshot | null; nodes: ZoNode[]; suggestions: SuggestionsData | null }) {
   const [briefing, setBriefing] = useState<string | null>(null);
   const [loadingBriefing, setLoadingBriefing] = useState(false);
@@ -358,7 +538,20 @@ function Summary({ context, nodes, suggestions }: { context: ContextSnapshot | n
   );
 }
 
-function NodeDetail({ node, nodes, suggestions }: { node: ZoNode; nodes: ZoNode[]; suggestions: Suggestion[] }) {
+function NodeDetail({ node, nodes, suggestions, projects = [], onProjectsChange }: { node: ZoNode; nodes: ZoNode[]; suggestions: Suggestion[]; projects?: Project[]; onProjectsChange?: () => void }) {
+  const linkedToProjects = projects.filter(p => p.linked_node_ids.includes(node.id) && p.status !== 'archived');
+  const unlinkedProjects = projects.filter(p => !p.linked_node_ids.includes(node.id) && p.status === 'active');
+  const [linkMenuOpen, setLinkMenuOpen] = useState(false);
+
+  async function link(pid: string) {
+    await linkNodeToProject(pid, node.id);
+    setLinkMenuOpen(false);
+    onProjectsChange?.();
+  }
+  async function unlink(pid: string) {
+    await unlinkNodeFromProject(pid, node.id);
+    onProjectsChange?.();
+  }
   const [summary, setSummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const lastId = useRef<string | null>(null);
@@ -391,6 +584,43 @@ function NodeDetail({ node, nodes, suggestions }: { node: ZoNode; nodes: ZoNode[
             <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', fontFamily: tokens.font.body, marginLeft: 'auto' }}>{cn.type}</span>
           </div>)}
         </div>}
+
+        {/* Project linking */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+            <div style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(255,255,255,0.25)', fontFamily: tokens.font.body }}>projects</div>
+            {unlinkedProjects.length > 0 && (
+              <Popover.Root open={linkMenuOpen} onOpenChange={setLinkMenuOpen}>
+                <Popover.Trigger asChild>
+                  <button style={{ marginLeft: 'auto', fontSize: 10, padding: '2px 8px', border: '1px dashed rgba(255,255,255,0.15)', borderRadius: 10, background: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontFamily: tokens.font.body }}>+ link</button>
+                </Popover.Trigger>
+                <Popover.Portal>
+                  <Popover.Content side="left" sideOffset={6} style={{ background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: 6, zIndex: 60, minWidth: 180, maxHeight: 240, overflow: 'auto' }}>
+                    {unlinkedProjects.map(p => (
+                      <button key={p.id} onClick={() => link(p.id)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '6px 10px', fontSize: 12, color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontFamily: tokens.font.body, borderRadius: 6 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+                        {p.title}
+                      </button>
+                    ))}
+                  </Popover.Content>
+                </Popover.Portal>
+              </Popover.Root>
+            )}
+          </div>
+          {linkedToProjects.length === 0 ? (
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.15)', fontFamily: tokens.font.body, fontStyle: 'italic' }}>not linked to any project</div>
+          ) : (
+            linkedToProjects.map(p => (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', fontFamily: tokens.font.body }}>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: 300, flex: 1 }}>{p.title}</span>
+                <span style={{ fontSize: 10, fontFamily: tokens.font.mono, color: 'rgba(255,255,255,0.2)' }}>{p.plan.filter(s => s.status === 'done').length}/{p.plan.length}</span>
+                <button onClick={() => unlink(p.id)} style={{ fontSize: 10, padding: 0, border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', fontFamily: tokens.font.body }}>unlink</button>
+              </div>
+            ))
+          )}
+        </div>
+
         <Separator.Root style={{ height: 1, background: 'rgba(255,255,255,0.06)', marginBottom: 16 }} />
         {relatedSuggestions.length > 0 ? <div>
           <div style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(255,255,255,0.25)', fontFamily: tokens.font.body, marginBottom: 8 }}>suggestions</div>
@@ -520,7 +750,7 @@ function SuggestionList({ suggestions }: { suggestions: Suggestion[] }) {
   );
 }
 
-function ZoView({ nodes, suggestions = [] }: { nodes: ZoNode[]; suggestions?: Suggestion[] }) {
+function ZoView({ nodes, suggestions = [], projects = [], onProjectsChange }: { nodes: ZoNode[]; suggestions?: Suggestion[]; projects?: Project[]; onProjectsChange?: () => void }) {
   const [mode, setMode] = useState<'graph' | 'list'>('graph');
   const [filter, setFilter] = useState('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -563,7 +793,7 @@ function ZoView({ nodes, suggestions = [] }: { nodes: ZoNode[]; suggestions?: Su
         </div>
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', fontFamily: tokens.font.body, marginBottom: 14 }}>{selectedNode.type} · {selectedNode.health} · {selectedNode.detail}</div>
         <Separator.Root style={{ height: 1, background: 'rgba(255,255,255,0.06)', marginBottom: 14 }} />
-        <NodeDetail node={selectedNode} nodes={nodes} suggestions={suggestions} />
+        <NodeDetail node={selectedNode} nodes={nodes} suggestions={suggestions} projects={projects} onProjectsChange={onProjectsChange} />
       </div>}
     </div>
   );
@@ -589,6 +819,7 @@ const MIN_LOAD_MS = 4000;
 export default function Dashboard() {
   const [context, setContext] = useState<ContextSnapshot | null>(null);
   const [suggestions, setSuggestions] = useState<SuggestionsData | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [promptOpen, setPromptOpen] = useState(false);
@@ -598,9 +829,13 @@ export default function Dashboard() {
 
   const load = useCallback(async () => {
     try {
-      const [ctx, sug] = await Promise.all([fetchContext(), fetchSuggestions()]);
-      setContext(ctx); setSuggestions(sug); setError(null);
+      const [ctx, sug, projs] = await Promise.all([fetchContext(), fetchSuggestions(), fetchProjects()]);
+      setContext(ctx); setSuggestions(sug); setProjects(projs); setError(null);
     } catch (e) { setError(`Failed to load: ${e}`); }
+  }, []);
+
+  const loadProjects = useCallback(async () => {
+    try { setProjects(await fetchProjects()); } catch (e) { /* ignore */ }
   }, []);
 
   useEffect(() => {
@@ -650,7 +885,9 @@ export default function Dashboard() {
 
         <Summary context={context} nodes={nodes} suggestions={suggestions} />
         <div style={{ height: tokens.space.xl }} />
-        <ZoView nodes={nodes} suggestions={suggestions?.suggestions} />
+        <ProjectsPanel projects={projects} nodes={nodes} onChange={loadProjects} />
+        <div style={{ height: tokens.space.xl }} />
+        <ZoView nodes={nodes} suggestions={suggestions?.suggestions} projects={projects} onProjectsChange={loadProjects} />
         <div style={{ height: tokens.space.xl }} />
         <AskBar />
         <div style={{ height: tokens.space.xl }} />
