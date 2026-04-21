@@ -23,10 +23,8 @@ cp "$REPO_DIR/space/public/pegasus.gif" "$SPACE_DIR/public/"
 cp "$REPO_DIR/space/public/pegasus.gif" "$SPACE_DIR/assets/" 2>/dev/null || true
 
 echo "==> Registering page route"
-# Add /dashboard to pages/index.ts if not already there
 if ! grep -q '"/dashboard"' "$SPACE_DIR/routes/pages/index.ts"; then
   python3 -c "
-import re
 p = '$SPACE_DIR/routes/pages/index.ts'
 c = open(p).read()
 entry = '''  \"/dashboard\": {
@@ -40,9 +38,7 @@ open(p, 'w').write(c)
 fi
 
 echo "==> Registering API routes"
-# Add /api/zo-* to api/index.ts if not already there
 python3 <<'PY'
-import re
 p = "/__substrate/space/routes/api/index.ts"
 c = open(p).read()
 routes = [
@@ -50,6 +46,16 @@ routes = [
   ('"/api/zo-suggestions"', '"api-zo-suggestions"'),
   ('"/api/zo-refresh"', '"api-zo-refresh"'),
   ('"/api/zo-ask"', '"api-zo-ask"'),
+  ('"/api/zo-projects"', '"api-zo-projects"'),
+  ('"/api/zo-projects/:id"', '"api-zo-projects"'),
+  ('"/api/zo-projects/:id/steps/:stepId"', '"api-zo-projects"'),
+  ('"/api/zo-projects/:id/steps/:stepId/run"', '"api-zo-projects"'),
+  ('"/api/zo-projects/:id/steps/:stepId/runs"', '"api-zo-projects"'),
+  ('"/api/zo-projects/:id/link-node"', '"api-zo-projects"'),
+  ('"/api/zo-projects/:id/unlink-node"', '"api-zo-projects"'),
+  ('"/api/zo-projects/:id/regenerate-plan"', '"api-zo-projects"'),
+  ('"/api/zo-projects/:id/run-today"', '"api-zo-projects"'),
+  ('"/api/zo-runs/:runId"', '"api-zo-runs"'),
 ]
 entries = ""
 for route, file in routes:
@@ -60,21 +66,60 @@ if entries:
     open(p, 'w').write(c)
 PY
 
-echo "==> Installing supervisor entry"
-if ! grep -q "zo-dashboard" "$SUPERVISOR_CONF"; then
-  cat "$REPO_DIR/supervisor/supervisord-user.conf" | grep -A 15 "zo-dashboard" >> "$SUPERVISOR_CONF"
-  supervisorctl -c "$SUPERVISOR_CONF" reread
-  supervisorctl -c "$SUPERVISOR_CONF" update
-else
-  echo "    already present, skipping"
+echo "==> Installing supervisor entries (zo-dashboard + guardian)"
+# zo-dashboard
+if ! grep -q "^\[program:zo-dashboard\]" "$SUPERVISOR_CONF"; then
+  cat >> "$SUPERVISOR_CONF" <<'EOF'
+
+[program:zo-dashboard]
+command=bun /home/workspace/Skills/zo-dashboard/scripts/server.ts
+directory=/home/workspace
+environment=
+autostart=true
+autorestart=true
+stopsignal=TERM
+stopasgroup=true
+startretries=20
+startsecs=3
+stdout_logfile=/dev/shm/zo-dashboard.log
+stderr_logfile=/dev/shm/zo-dashboard_err.log
+stdout_logfile_maxbytes=10MB
+stdout_logfile_backups=3
+stopwaitsecs=4
+killasgroup=true
+EOF
 fi
+# guardian (self-healer)
+if ! grep -q "^\[program:zo-dashboard-guardian\]" "$SUPERVISOR_CONF"; then
+  cat >> "$SUPERVISOR_CONF" <<'EOF'
+
+[program:zo-dashboard-guardian]
+command=bash /home/workspace/Skills/zo-dashboard/scripts/guardian.sh
+directory=/home/workspace
+environment=
+autostart=true
+autorestart=true
+stopsignal=TERM
+stopasgroup=true
+startretries=20
+startsecs=3
+stdout_logfile=/dev/shm/zo-dashboard-guardian.log
+stderr_logfile=/dev/shm/zo-dashboard-guardian_err.log
+stdout_logfile_maxbytes=10MB
+stdout_logfile_backups=3
+stopwaitsecs=4
+killasgroup=true
+EOF
+fi
+supervisorctl -c "$SUPERVISOR_CONF" reread
+supervisorctl -c "$SUPERVISOR_CONF" update
 
 echo "==> Building space"
 cd "$SPACE_DIR" && bun run build
 
 echo "==> Restarting services"
 supervisorctl -c /etc/zo/supervisor.conf restart zo-space
-supervisorctl -c "$SUPERVISOR_CONF" restart zo-dashboard
+supervisorctl -c "$SUPERVISOR_CONF" restart zo-dashboard 2>/dev/null || true
 
 echo ""
 echo "Done. Dashboard live at https://<your-handle>.zo.space/dashboard"
